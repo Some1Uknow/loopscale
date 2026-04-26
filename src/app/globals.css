@@ -1,0 +1,102 @@
+@import url("https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=DM+Sans:wght@400;500;600&display=swap");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+@import "@solana/wallet-adapter-react-ui/styles.css";
+
+:root {
+  --font-sans: "DM Sans", "Inter", "Segoe UI", sans-serif;
+  --font-mono: "DM Mono", "SFMono-Regular", "Menlo", monospace;
+
+  --background: 242 238 232;
+  --foreground: 22 22 20;
+  --surface: 236 231 223;
+  --surface-strong: 22 22 20;
+  --card: 249 247 243;
+  --line: 213 205 194;
+  --primary: 22 22 20;
+  --primary-foreground: 246 244 239;
+  --accent: 94 104 99;
+  --accent-foreground: 246 244 239;
+  --success: 47 140 89;
+  --warning: 171 113 41;
+  --danger: 179 82 62;
+  --muted: 231 226 218;
+  --muted-foreground: 114 107 97;
+  --ring: 47 140 89;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: rgb(var(--background));
+  color: rgb(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+.text-balance {
+  text-wrap: balance;
+}
+
+.shell-border {
+  border: 0.5px solid rgba(213, 205, 194, 1);
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    rgba(222, 217, 206, 0.65) 0%,
+    rgba(245, 242, 235, 0.92) 50%,
+    rgba(222, 217, 206, 0.65) 100%
+  );
+  background-size: 200% 100%;
+}
+
+.mono-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.app-frame {
+  background: rgb(var(--card));
+  border: 0.5px solid rgba(213, 205, 194, 1);
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.summary-strip {
+  display: grid;
+  gap: 1px;
+  background: rgba(213, 205, 194, 0.85);
+}
+
+.summary-cell {
+  background: rgb(var(--card));
+}
+
+.wallet-adapter-button-trigger {
+  font-family: var(--font-mono) !important;
+}
