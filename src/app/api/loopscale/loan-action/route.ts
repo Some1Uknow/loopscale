@@ -8,7 +8,8 @@ import type {
   LoanInfo,
   LoanInfoEnvelope,
   LoanLedger,
-  LoanLockTransactionResponse
+  LoanLockTransactionResponse,
+  VersionedTransactionResponse
 } from "@/lib/loopscale/types";
 import {
   apiError,
@@ -64,6 +65,18 @@ function expectedLoanValues(ledger: LoanLedger) {
     expectedApy: ledger.apy,
     expectedLqt: ledger.lqtRatios
   };
+}
+
+function normalizeLoanActionResponse(
+  response: LoanLockTransactionResponse | VersionedTransactionResponse
+): LoanLockTransactionResponse {
+  if ("message" in response && "signatures" in response) {
+    return {
+      transactions: [response]
+    };
+  }
+
+  return response;
 }
 
 export async function POST(request: NextRequest) {
@@ -145,20 +158,22 @@ export async function POST(request: NextRequest) {
         return apiError(requestId, 400, "bad_request", "No withdrawable collateral was found.");
       }
 
-      response = await loopscaleFetch<LoanLockTransactionResponse>({
-        path: "/markets/creditbook/collateral/withdraw",
-        headers: {
-          "user-wallet": body.wallet,
-          payer: body.wallet
-        },
-        body: {
-          loan: body.loanAddress,
-          collateralMint: collateral.assetMint,
-          amount: collateral.amount,
-          collateralIndex: collateral.index ?? 0,
-          expectedLoanValues: expectedLoanValues(ledger)
-        }
-      });
+      response = normalizeLoanActionResponse(
+        await loopscaleFetch<LoanLockTransactionResponse | VersionedTransactionResponse>({
+          path: "/markets/creditbook/collateral/withdraw",
+          headers: {
+            "user-wallet": body.wallet,
+            payer: body.wallet
+          },
+          body: {
+            loan: body.loanAddress,
+            collateralMint: collateral.assetMint,
+            amount: collateral.amount,
+            collateralIndex: collateral.index ?? 0,
+            expectedLoanValues: expectedLoanValues(ledger)
+          }
+        })
+      );
     } else {
       if (hasRepayableDebt(loanInfo)) {
         return apiError(requestId, 400, "bad_request", "Repay the outstanding loan before closing.");

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
+import { PublicKey, SendTransactionError, type Connection } from "@solana/web3.js";
 import { FolderOpenDot, RefreshCw } from "lucide-react";
 
 import { deserializeLoopscaleTransaction } from "@/lib/loopscale/transaction";
@@ -42,14 +43,54 @@ function formatLoanActionName(action: LoanAction) {
   return "Close loan";
 }
 
-function formatLoanActionError(error: unknown) {
+async function formatLoanActionError(error: unknown, connection: Connection) {
   const message = error instanceof Error ? error.message : "Loan action failed before signing.";
 
   if (message.includes("403") && message.includes("Access forbidden")) {
     return `Your Solana RPC endpoint rejected transaction submission. Set NEXT_PUBLIC_SOLANA_RPC_URL to a dedicated mainnet RPC provider and try again. Current endpoint: ${rpcEndpoint}`;
   }
 
+  if (error instanceof SendTransactionError) {
+    const logs = await error.getLogs(connection).catch(() => []);
+    const logText = logs.join(" ");
+    if (logText.includes("insufficient funds")) {
+      return "The repay transaction failed because the wallet does not have enough of the repayment token. Add a small amount of the borrowed asset, refresh, and try again.";
+    }
+    if (logs.length > 0) {
+      return `${message} Logs: ${logs.slice(-6).join(" | ")}`;
+    }
+  }
+
   return message;
+}
+
+function readParsedTokenAmount(data: unknown) {
+  const maybeParsed = data as {
+    parsed?: {
+      info?: {
+        tokenAmount?: {
+          amount?: string;
+        };
+      };
+    };
+  };
+  const amount = maybeParsed.parsed?.info?.tokenAmount?.amount;
+  return amount ? BigInt(amount) : BigInt(0);
+}
+
+async function getWalletTokenBalanceBaseUnits(
+  connection: Connection,
+  owner: PublicKey,
+  mint: string
+) {
+  const accounts = await connection.getParsedTokenAccountsByOwner(owner, {
+    mint: new PublicKey(mint)
+  });
+
+  return accounts.value.reduce(
+    (sum, item) => sum + readParsedTokenAmount(item.account.data),
+    BigInt(0)
+  );
 }
 
 export function LoansView() {
@@ -128,6 +169,21 @@ export function LoansView() {
     setActionState({ status: "running", loanAddress: loan.address, action });
 
     try {
+      if (action === "repay" && loan.principalOutstandingBaseUnits > 0) {
+        const balance = await getWalletTokenBalanceBaseUnits(
+          connection,
+          publicKey,
+          loan.principalMint
+        );
+        const required = BigInt(Math.ceil(loan.principalOutstandingBaseUnits));
+
+        if (balance < required) {
+          throw new Error(
+            `Your wallet has ${balance.toString()} base units of ${loan.principalSymbol}, but this loan still needs ${required.toString()} base units. Add a small amount of ${loan.principalSymbol}, refresh, and retry.`
+          );
+        }
+      }
+
       const response = await fetch("/api/loopscale/loan-action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -165,7 +221,7 @@ export function LoansView() {
     } catch (error) {
       setActionState({
         status: "error",
-        message: formatLoanActionError(error)
+        message: await formatLoanActionError(error, connection)
       });
     }
   }

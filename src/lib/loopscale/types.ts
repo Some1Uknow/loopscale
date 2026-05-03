@@ -191,7 +191,9 @@ export type LoanLedger = {
 export type DerivedLoanCard = {
   address: string;
   borrower: string;
+  principalMint: string;
   principalSymbol: string;
+  principalOutstandingBaseUnits: number;
   principalAmountUi: number;
   outstandingInterestUi: number;
   avgApyPercent: number | null;

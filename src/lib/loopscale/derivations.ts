@@ -315,7 +315,9 @@ export function deriveLoanCards(
       return {
         address,
         borrower,
+        principalMint,
         principalSymbol: principalToken.symbol,
+        principalOutstandingBaseUnits: ledgerPrincipalOutstanding,
         principalAmountUi,
         outstandingInterestUi,
         avgApyPercent: averageApy,
