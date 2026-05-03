@@ -31,6 +31,10 @@ export function getClientIp(request: NextRequest) {
   return request.headers.get("x-real-ip") ?? "unknown";
 }
 
+export function getRateLimitIdentifier(request: NextRequest) {
+  return getClientIp(request).toLowerCase();
+}
+
 export function logEvent(
   level: "info" | "warn" | "error",
   event: string,

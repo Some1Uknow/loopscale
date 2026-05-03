@@ -30,18 +30,22 @@ type ReviewState =
 
 export function LoanReview({
   principalMint,
+  principalAmountRaw,
   principalAmountUi,
   durationKey,
   collateralMint,
+  collateralAmountRaw,
   collateralAmountUi,
   strategy,
   apy,
   lqt
 }: {
   principalMint: string;
+  principalAmountRaw: string;
   principalAmountUi: number;
   durationKey: string;
   collateralMint: string;
+  collateralAmountRaw: string;
   collateralAmountUi: number;
   strategy: string;
   apy: number;
@@ -69,9 +73,9 @@ export function LoanReview({
           body: JSON.stringify({
             userWallet: wallet || undefined,
             principalMint,
-            principalAmountUi,
+            principalAmountUi: principalAmountRaw,
             collateralMint,
-            collateralAmountUi,
+            collateralAmountUi: collateralAmountRaw,
             durationKey
           })
         });
@@ -90,7 +94,7 @@ export function LoanReview({
         });
       }
     })();
-  }, [publicKey, principalMint, principalAmountUi, collateralMint, collateralAmountUi, durationKey]);
+  }, [publicKey, principalMint, principalAmountRaw, collateralMint, collateralAmountRaw, durationKey]);
 
   async function handleCreateLoan() {
     if (!connected || !publicKey || !signTransaction) {
@@ -118,9 +122,9 @@ export function LoanReview({
         body: JSON.stringify({
           wallet: publicKey.toBase58(),
           principalMint,
-          principalAmountUi,
+          principalAmountUi: principalAmountRaw,
           collateralMint,
-          collateralAmountUi,
+          collateralAmountUi: collateralAmountRaw,
           durationKey,
           strategy: reviewState.data.bestQuote.strategy,
           expectedApy: reviewState.data.bestQuote.apy,

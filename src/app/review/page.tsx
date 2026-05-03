@@ -1,5 +1,6 @@
 import { AppShell } from "@/components/layout/app-shell";
 import { LoanReview } from "@/components/review/loan-review";
+import { InputValidationError, parseTokenAmountInput } from "@/lib/token-amounts";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;
 
@@ -10,15 +11,39 @@ export default async function ReviewPage({
 }) {
   const params = await searchParams;
   const principalMint = getFirstParam(params.principalMint);
-  const principalAmountUi = Number(getFirstParam(params.principalAmountUi));
+  const principalAmountRaw = getFirstParam(params.principalAmountUi);
   const durationKey = getFirstParam(params.durationKey);
   const collateralMint = getFirstParam(params.collateralMint);
-  const collateralAmountUi = Number(getFirstParam(params.collateralAmountUi));
+  const collateralAmountRaw = getFirstParam(params.collateralAmountUi);
   const strategy = getFirstParam(params.strategy);
   const apy = Number(getFirstParam(params.apy));
   const lqt = Number(getFirstParam(params.lqt));
+  let principalAmountUi = 0;
+  let collateralAmountUi = 0;
+  let validationMessage = "";
+
+  if (principalMint && collateralMint && principalAmountRaw && collateralAmountRaw) {
+    try {
+      principalAmountUi = parseTokenAmountInput({
+        value: principalAmountRaw,
+        mint: principalMint,
+        fieldLabel: "Borrow amount"
+      }).amountUi;
+      collateralAmountUi = parseTokenAmountInput({
+        value: collateralAmountRaw,
+        mint: collateralMint,
+        fieldLabel: "Collateral amount"
+      }).amountUi;
+    } catch (error) {
+      validationMessage =
+        error instanceof InputValidationError
+          ? error.message
+          : "The selected borrow route was missing required inputs. Go back and start again.";
+    }
+  }
 
   if (
+    validationMessage ||
     !principalMint ||
     !durationKey ||
     !collateralMint ||
@@ -30,11 +55,15 @@ export default async function ReviewPage({
       <AppShell
         currentPath="/borrow"
         title="Review route"
-        subtitle="The selected borrow route was missing required inputs. Go back and start again."
+        subtitle={
+          validationMessage ||
+          "The selected borrow route was missing required inputs. Go back and start again."
+        }
       >
         <div className="rounded-[28px] bg-card p-6 ring-1 ring-line">
           <p className="text-sm text-mutedForeground">
-            This preview requires a principal, collateral, amount, term, and selected strategy.
+            {validationMessage ||
+              "This preview requires a principal, collateral, amount, term, and selected strategy."}
           </p>
         </div>
       </AppShell>
@@ -49,9 +78,11 @@ export default async function ReviewPage({
     >
       <LoanReview
         principalMint={principalMint}
+        principalAmountRaw={principalAmountRaw}
         principalAmountUi={principalAmountUi}
         durationKey={durationKey}
         collateralMint={collateralMint}
+        collateralAmountRaw={collateralAmountRaw}
         collateralAmountUi={collateralAmountUi}
         strategy={strategy}
         apy={apy}

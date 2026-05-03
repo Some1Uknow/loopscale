@@ -9,7 +9,7 @@ import type {
   LoopscaleQuotesRequest
 } from "@/lib/loopscale/types";
 import { fetchTokenUsdPrices } from "@/lib/prices";
-import { uiToBaseUnits } from "@/lib/utils";
+import { uiToBaseUnitsExact } from "@/lib/token-amounts";
 
 export async function fetchDerivedQuotePayload(input: {
   userWallet?: string;
@@ -37,7 +37,11 @@ export async function fetchDerivedQuotePayload(input: {
     limit: 8,
     offset: 0,
     collateral: [input.collateralMint],
-    minPrincipalAmount: uiToBaseUnits(input.principalAmountUi, principal.decimals)
+    minPrincipalAmount: uiToBaseUnitsExact(
+      input.principalAmountUi,
+      principal.decimals,
+      "Borrow amount"
+    )
   };
 
   const [marketQuotes, maxQuotes, priceMap] = await Promise.all([
@@ -56,7 +60,11 @@ export async function fetchDerivedQuotePayload(input: {
         principalMint: input.principalMint,
         collateralFilter: [
           {
-            amount: uiToBaseUnits(input.collateralAmountUi, collateral.decimals),
+            amount: uiToBaseUnitsExact(
+              input.collateralAmountUi,
+              collateral.decimals,
+              "Collateral amount"
+            ),
             assetData: {
               Spl: {
                 mint: input.collateralMint

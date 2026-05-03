@@ -3,6 +3,7 @@ type Bucket = {
   resetAt: number;
 };
 
+// Instance-local best-effort limiter for small deployments. This is not shared across replicas.
 const buckets = new Map<string, Bucket>();
 
 export function consumeRateLimit(input: {
@@ -43,4 +44,8 @@ export function consumeRateLimit(input: {
     remaining: Math.max(input.limit - current.count, 0),
     resetAt: current.resetAt
   };
+}
+
+export function resetRateLimitBuckets() {
+  buckets.clear();
 }

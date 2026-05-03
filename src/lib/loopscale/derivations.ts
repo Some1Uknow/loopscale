@@ -12,9 +12,9 @@ import {
   baseUnitsToUi,
   formatDateFromNow,
   formatPercentFromCbps,
-  formatTokenAmount,
-  uiToBaseUnits
+  formatTokenAmount
 } from "@/lib/utils";
+import { uiToBaseUnitsExact } from "@/lib/token-amounts";
 
 export function deriveQuotePayload(input: {
   principalMint: string;
@@ -36,13 +36,15 @@ export function deriveQuotePayload(input: {
     throw new Error("Unsupported token in quote response.");
   }
 
-  const requestedPrincipalBaseUnits = uiToBaseUnits(
+  const requestedPrincipalBaseUnits = uiToBaseUnitsExact(
     input.principalAmountUi,
-    principalToken.decimals
+    principalToken.decimals,
+    "Borrow amount"
   );
-  const requestedCollateralBaseUnits = uiToBaseUnits(
+  const requestedCollateralBaseUnits = uiToBaseUnitsExact(
     input.collateralAmountUi,
-    collateralToken.decimals
+    collateralToken.decimals,
+    "Collateral amount"
   );
 
   const bestQuoteAmount = input.bestQuote?.amount ?? 0;
@@ -117,15 +119,13 @@ export function deriveQuotePayload(input: {
     durationKey: input.durationKey,
     principalAmountUi: input.principalAmountUi,
     collateralAmountUi: input.collateralAmountUi,
-    status,
     bestQuote: input.bestQuote
       ? {
           strategy: input.bestQuote.strategy,
           apy: input.bestQuote.apy,
           lqt: input.bestQuote.lqt
         }
-      : null,
-    maxBorrowableUi
+      : null
   });
   const { quotedAt, expiresAt } = buildQuoteTiming(input.nowMs, input.quoteTtlMs);
 
@@ -173,7 +173,11 @@ export function deriveCreateLoanPayload(input: CreateLoanTransactionRequest) {
     borrower: input.wallet,
     depositCollateral: [
       {
-        collateralAmount: uiToBaseUnits(input.collateralAmountUi, collateralToken.decimals),
+        collateralAmount: uiToBaseUnitsExact(
+          input.collateralAmountUi,
+          collateralToken.decimals,
+          "Collateral amount"
+        ),
         collateralAssetData: {
           Spl: {
             mint: input.collateralMint
@@ -184,7 +188,11 @@ export function deriveCreateLoanPayload(input: CreateLoanTransactionRequest) {
     principalRequested: [
       {
         ledgerIndex: 0,
-        principalAmount: uiToBaseUnits(input.principalAmountUi, principalToken.decimals),
+        principalAmount: uiToBaseUnitsExact(
+          input.principalAmountUi,
+          principalToken.decimals,
+          "Borrow amount"
+        ),
         principalMint: input.principalMint,
         strategy: input.strategy,
         durationIndex: duration.durationIndex,
@@ -231,12 +239,22 @@ export function deriveLoanCards(
         .map((ledger) => ledger.endTime ?? 0)
         .sort((a, b) => b - a)[0];
 
+      const collateralItems =
+        loanInfo.collateral && loanInfo.collateral.length > 0
+          ? loanInfo.collateral.map((collateral) => ({
+              amount: collateral.amount,
+              mint: collateral.assetMint
+            }))
+          : loanInfo.collateralData?.map((collateral) => ({
+              amount: collateral.amount,
+              mint: collateral.assetData?.Spl?.mint
+            })) ?? [];
+
       const collateralSummary =
-        loanInfo.collateralData && loanInfo.collateralData.length > 0
-          ? loanInfo.collateralData
+        collateralItems.length > 0
+          ? collateralItems
               .map((collateral) => {
-                const mint = collateral.assetData?.Spl?.mint;
-                const token = mint ? getTokenByMint(mint) : undefined;
+                const token = collateral.mint ? getTokenByMint(collateral.mint) : undefined;
                 if (!token || collateral.amount == null) return "Custom collateral";
                 return formatTokenAmount(
                   baseUnitsToUi(collateral.amount, token.decimals),

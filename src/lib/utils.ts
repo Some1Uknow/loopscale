@@ -39,10 +39,6 @@ export function baseUnitsToUi(amount: number, decimals: number) {
   return amount / 10 ** decimals;
 }
 
-export function uiToBaseUnits(amount: number, decimals: number) {
-  return Math.round(amount * 10 ** decimals);
-}
-
 export function formatDateFromNow(date: Date) {
   return new Intl.DateTimeFormat("en-US", {
     dateStyle: "medium"

@@ -8,13 +8,11 @@ export function buildQuoteFingerprint(quote: {
   durationKey: string;
   principalAmountUi: number;
   collateralAmountUi: number;
-  status: string;
   bestQuote: {
     strategy: string;
     apy: number;
     lqt: number;
   } | null;
-  maxBorrowableUi: number;
 }) {
   const payload = JSON.stringify({
     principalMint: quote.principalMint,
@@ -22,11 +20,9 @@ export function buildQuoteFingerprint(quote: {
     durationKey: quote.durationKey,
     principalAmountUi: quote.principalAmountUi,
     collateralAmountUi: quote.collateralAmountUi,
-    status: quote.status,
     strategy: quote.bestQuote?.strategy ?? null,
     apy: quote.bestQuote?.apy ?? null,
-    lqt: quote.bestQuote?.lqt ?? null,
-    maxBorrowableUi: Number(quote.maxBorrowableUi.toFixed(8))
+    lqt: quote.bestQuote?.lqt ?? null
   });
 
   return createHash("sha256").update(payload).digest("hex");

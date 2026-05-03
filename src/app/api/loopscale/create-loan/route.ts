@@ -6,20 +6,30 @@ import { loopscaleFetch, parseJsonBody } from "@/lib/loopscale/client";
 import { deriveCreateLoanPayload } from "@/lib/loopscale/derivations";
 import { validateCreateLoanQuote } from "@/lib/loopscale/guards";
 import { fetchDerivedQuotePayload } from "@/lib/loopscale/quote-service";
-import { createLoanRequestSchema } from "@/lib/loopscale/schemas";
+import { createLoanRequestSchema, parseCreateLoanRequest } from "@/lib/loopscale/schemas";
 import type { CreateLoanResponse } from "@/lib/loopscale/types";
-import { apiError, apiOk, getClientIp, getRequestId, logEvent } from "@/lib/server/api";
+import {
+  apiError,
+  apiOk,
+  getClientIp,
+  getRateLimitIdentifier,
+  getRequestId,
+  logEvent
+} from "@/lib/server/api";
 import { consumeRateLimit } from "@/lib/server/rate-limit";
+import { InputValidationError } from "@/lib/token-amounts";
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const startedAt = Date.now();
 
   try {
-    const body = parseJsonBody(await request.json(), createLoanRequestSchema);
+    const body = parseCreateLoanRequest(
+      parseJsonBody(await request.json(), createLoanRequestSchema)
+    );
     const env = getServerEnv();
     const rate = consumeRateLimit({
-      key: `create:${getClientIp(request)}:${body.wallet}`,
+      key: `create:${getRateLimitIdentifier(request)}`,
       limit: env.CREATE_RATE_LIMIT_MAX,
       windowMs: env.CREATE_RATE_LIMIT_WINDOW_MS
     });
@@ -87,6 +97,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) {
       return apiError(requestId, 400, "bad_request", "Invalid create-loan request.");
+    }
+    if (error instanceof InputValidationError) {
+      return apiError(requestId, 400, "bad_request", error.message);
     }
     const message =
       error instanceof Error ? error.message : "Unable to build Loopscale loan transaction.";

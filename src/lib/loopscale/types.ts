@@ -143,6 +143,10 @@ export type LoanInfo = {
   };
   health?: number | null;
   dueTime?: number | null;
+  collateral?: Array<{
+    amount?: number;
+    assetMint?: string;
+  }>;
   collateralData?: Array<{
     amount?: number;
     assetData?: AssetDataInfo;

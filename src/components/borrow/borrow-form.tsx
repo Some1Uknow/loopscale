@@ -16,6 +16,7 @@ import {
 } from "@/lib/borrow-catalog";
 import type { DerivedQuotePayload, LoopscaleQuoteItem } from "@/lib/loopscale/types";
 import { readResponseError } from "@/lib/http";
+import { InputValidationError, parseTokenAmountInput } from "@/lib/token-amounts";
 import {
   baseUnitsToUi,
   formatPercentFromCbps,
@@ -53,6 +54,12 @@ export function BorrowForm() {
   const currentWallet = publicKey?.toBase58() ?? demoWallet;
   const principalToken = getTokenByMint(form.principalMint);
   const principalSymbol = principalToken?.symbol ?? "";
+  const principalAmountDisplay = Number.isFinite(Number(form.principalAmountUi))
+    ? Number(form.principalAmountUi)
+    : 0;
+  const collateralAmountDisplay = Number.isFinite(Number(form.collateralAmountUi))
+    ? Number(form.collateralAmountUi)
+    : 0;
 
   const summaryTone = useMemo(() => {
     if (quoteState.status !== "success") return "neutral";
@@ -62,13 +69,24 @@ export function BorrowForm() {
   }, [quoteState]);
 
   async function refreshQuote() {
-    const principalAmount = Number(form.principalAmountUi);
-    const collateralAmount = Number(form.collateralAmountUi);
-
-    if (!(principalAmount > 0) || !(collateralAmount > 0)) {
+    try {
+      parseTokenAmountInput({
+        value: form.principalAmountUi,
+        mint: form.principalMint,
+        fieldLabel: "Borrow amount"
+      });
+      parseTokenAmountInput({
+        value: form.collateralAmountUi,
+        mint: form.collateralMint,
+        fieldLabel: "Collateral amount"
+      });
+    } catch (error) {
       setQuoteState({
         status: "error",
-        message: "Enter a positive borrow amount and collateral amount first."
+        message:
+          error instanceof InputValidationError
+            ? error.message
+            : "Enter a valid borrow amount and collateral amount first."
       });
       return;
     }
@@ -81,9 +99,9 @@ export function BorrowForm() {
         body: JSON.stringify({
           userWallet: currentWallet,
           principalMint: form.principalMint,
-          principalAmountUi: principalAmount,
+          principalAmountUi: form.principalAmountUi,
           collateralMint: form.collateralMint,
-          collateralAmountUi: collateralAmount,
+          collateralAmountUi: form.collateralAmountUi,
           durationKey: form.durationKey
         })
       });
@@ -125,7 +143,7 @@ export function BorrowForm() {
       <div className="summary-strip grid md:grid-cols-3">
         <SummaryCell
           label="Borrow amount"
-          value={formatTokenAmount(Number(form.principalAmountUi || 0), principalSymbol, 2)}
+          value={formatTokenAmount(principalAmountDisplay, principalSymbol, 2)}
           sub="requested principal"
         />
         <SummaryCell
@@ -135,7 +153,11 @@ export function BorrowForm() {
         />
         <SummaryCell
           label="Collateral"
-          value={`${form.collateralAmountUi || "0"} ${getTokenByMint(form.collateralMint)?.symbol ?? ""}`}
+          value={formatTokenAmount(
+            collateralAmountDisplay,
+            getTokenByMint(form.collateralMint)?.symbol ?? "",
+            3
+          )}
           sub="posted asset"
         />
       </div>
@@ -351,7 +373,7 @@ export function BorrowForm() {
                   </p>
                 </div>
                 <div className="rounded-2xl border border-white/12 px-4 py-3 text-sm text-primaryForeground/82">
-                  Request: {formatTokenAmount(Number(form.principalAmountUi), principalSymbol, 2)}
+                  Request: {formatTokenAmount(principalAmountDisplay, principalSymbol, 2)}
                 </div>
               </div>
             </div>

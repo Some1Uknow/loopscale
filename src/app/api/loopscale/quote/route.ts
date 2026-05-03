@@ -3,22 +3,28 @@ import { ZodError } from "zod";
 
 import { getServerEnv } from "@/lib/env";
 import { parseJsonBody } from "@/lib/loopscale/client";
-import { quoteRequestSchema } from "@/lib/loopscale/schemas";
+import { parseQuoteRequest, quoteRequestSchema } from "@/lib/loopscale/schemas";
 import { fetchDerivedQuotePayload } from "@/lib/loopscale/quote-service";
-import { apiError, apiOk, getClientIp, getRequestId, logEvent } from "@/lib/server/api";
+import {
+  apiError,
+  apiOk,
+  getClientIp,
+  getRateLimitIdentifier,
+  getRequestId,
+  logEvent
+} from "@/lib/server/api";
 import { consumeRateLimit } from "@/lib/server/rate-limit";
+import { InputValidationError } from "@/lib/token-amounts";
 
 export async function POST(request: NextRequest) {
   const requestId = getRequestId(request);
   const startedAt = Date.now();
 
   try {
-    const body = parseJsonBody(await request.json(), quoteRequestSchema.partial({
-      userWallet: true
-    }));
+    const body = parseQuoteRequest(parseJsonBody(await request.json(), quoteRequestSchema));
     const env = getServerEnv();
     const rate = consumeRateLimit({
-      key: `quote:${getClientIp(request)}:${body.userWallet ?? "demo"}`,
+      key: `quote:${getRateLimitIdentifier(request)}`,
       limit: env.QUOTE_RATE_LIMIT_MAX,
       windowMs: env.QUOTE_RATE_LIMIT_WINDOW_MS
     });
@@ -52,6 +58,9 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     if (error instanceof ZodError) {
       return apiError(requestId, 400, "bad_request", "Invalid quote request.");
+    }
+    if (error instanceof InputValidationError) {
+      return apiError(requestId, 400, "bad_request", error.message);
     }
     const message = error instanceof Error ? error.message : "Unable to fetch Loopscale quotes.";
     logEvent("error", "quote.failure", {

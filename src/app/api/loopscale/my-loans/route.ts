@@ -6,7 +6,13 @@ import { loopscaleFetch, parseJsonBody } from "@/lib/loopscale/client";
 import { deriveLoanCards } from "@/lib/loopscale/derivations";
 import { loanInfoRequestSchema } from "@/lib/loopscale/schemas";
 import type { LoanInfoEnvelope, LoopscaleLoanInfoRequest } from "@/lib/loopscale/types";
-import { apiError, apiOk, getClientIp, getRequestId, logEvent } from "@/lib/server/api";
+import {
+  apiError,
+  apiOk,
+  getRateLimitIdentifier,
+  getRequestId,
+  logEvent
+} from "@/lib/server/api";
 import { consumeRateLimit } from "@/lib/server/rate-limit";
 
 export async function POST(request: NextRequest) {
@@ -17,7 +23,7 @@ export async function POST(request: NextRequest) {
     const body = parseJsonBody(await request.json(), loanInfoRequestSchema);
     const env = getServerEnv();
     const rate = consumeRateLimit({
-      key: `loans:${getClientIp(request)}:${body.borrower}`,
+      key: `loans:${getRateLimitIdentifier(request)}`,
       limit: env.LOANS_RATE_LIMIT_MAX,
       windowMs: env.LOANS_RATE_LIMIT_WINDOW_MS
     });

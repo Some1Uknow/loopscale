@@ -68,9 +68,7 @@ test("fingerprint changes when route details change", () => {
     durationKey: "1m",
     principalAmountUi: 50,
     collateralAmountUi: 1,
-    status: "available",
-    bestQuote: { strategy: "strategy-1", apy: 100, lqt: 200 },
-    maxBorrowableUi: 69
+    bestQuote: { strategy: "strategy-1", apy: 100, lqt: 200 }
   });
   const b = buildQuoteFingerprint({
     principalMint: "principal",
@@ -78,12 +76,31 @@ test("fingerprint changes when route details change", () => {
     durationKey: "1m",
     principalAmountUi: 50,
     collateralAmountUi: 1,
-    status: "available",
-    bestQuote: { strategy: "strategy-2", apy: 100, lqt: 200 },
-    maxBorrowableUi: 69
+    bestQuote: { strategy: "strategy-2", apy: 100, lqt: 200 }
   });
 
   assert.notEqual(a, b);
+});
+
+test("fingerprint stays stable when only analytics fields change", () => {
+  const a = buildQuoteFingerprint({
+    principalMint: "principal",
+    collateralMint: "collateral",
+    durationKey: "1m",
+    principalAmountUi: 50,
+    collateralAmountUi: 1,
+    bestQuote: { strategy: "strategy-1", apy: 100, lqt: 200 }
+  });
+  const b = buildQuoteFingerprint({
+    principalMint: "principal",
+    collateralMint: "collateral",
+    durationKey: "1m",
+    principalAmountUi: 50,
+    collateralAmountUi: 1,
+    bestQuote: { strategy: "strategy-1", apy: 100, lqt: 200 }
+  });
+
+  assert.equal(a, b);
 });
 
 test("rejects expired quote", () => {
@@ -94,9 +111,7 @@ test("rejects expired quote", () => {
     durationKey: quote.durationKey,
     principalAmountUi: quote.principalAmountUi,
     collateralAmountUi: quote.collateralAmountUi,
-    status: quote.status,
-    bestQuote: { strategy: "strategy-1", apy: 119850, lqt: 900000 },
-    maxBorrowableUi: quote.maxBorrowableUi
+    bestQuote: { strategy: "strategy-1", apy: 119850, lqt: 900000 }
   });
   const body = makeBody({
     quoteFingerprint: quote.quoteFingerprint,
