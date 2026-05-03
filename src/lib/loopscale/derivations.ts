@@ -16,6 +16,8 @@ import {
 } from "@/lib/utils";
 import { uiToBaseUnitsExact } from "@/lib/token-amounts";
 
+const minimumActionableLoanUsd = 0.01;
+
 export function deriveQuotePayload(input: {
   principalMint: string;
   collateralMint: string;
@@ -207,33 +209,63 @@ export function deriveCreateLoanPayload(input: CreateLoanTransactionRequest) {
 
 export function deriveLoanCards(
   envelopes:
-    | Array<{ totalCount: number; loanInfos: LoanInfo[] }>
-    | { totalCount: number; loanInfos: LoanInfo[] }
+    | Array<{ totalCount?: number; loanInfos?: LoanInfo[]; items?: LoanInfo[] }>
+    | { totalCount?: number; loanInfos?: LoanInfo[]; items?: LoanInfo[] }
 ): DerivedLoanCard[] {
   const normalized = Array.isArray(envelopes) ? envelopes : [envelopes];
 
   return normalized
-    .flatMap((envelope) => envelope.loanInfos)
-    .map((loanInfo) => {
+    .flatMap((envelope) => {
+      if (Array.isArray(envelope?.loanInfos)) return envelope.loanInfos;
+      if (Array.isArray(envelope?.items)) return envelope.items;
+      return [];
+    })
+    .filter((loanInfo): loanInfo is LoanInfo => Boolean(loanInfo))
+    .map((loanInfo): DerivedLoanCard | null => {
       const address = loanInfo.loan?.address ?? "unknown";
       const borrower = loanInfo.loan?.borrower ?? "unknown";
+      const ledgers = loanInfo.ledgers ?? [];
       const principalMint =
-        loanInfo.amount?.principalMint ?? loanInfo.ledgers?.[0]?.principalMint ?? supportedTokens[0].mint;
+        loanInfo.amount?.principalMint ?? ledgers[0]?.principalMint ?? supportedTokens[0].mint;
       const principalToken = getTokenByMint(principalMint) ?? supportedTokens[0];
+      const ledgerPrincipalDue = ledgers.reduce(
+        (sum, ledger) => sum + (ledger.principalDue ?? ledger.principalAmount ?? 0),
+        0
+      );
+      const ledgerPrincipalOutstanding = ledgers.reduce((sum, ledger) => {
+        const principalDue = ledger.principalDue ?? ledger.principalAmount ?? 0;
+        const principalRepaid = ledger.principalRepaid ?? 0;
+        return sum + Math.max(principalDue - principalRepaid, 0);
+      }, 0);
+      const hasLedgerPrincipalAmounts = ledgers.some(
+        (ledger) => ledger.principalDue != null || ledger.principalAmount != null
+      );
+      const ledgerInterestOutstanding = ledgers.reduce(
+        (sum, ledger) =>
+          sum + (ledger.interestOutstanding ?? ledger.interestOwedAmount ?? 0),
+        0
+      );
       const principalAmountUi = baseUnitsToUi(
-        loanInfo.amount?.principalAmount ?? 0,
+        hasLedgerPrincipalAmounts
+          ? ledgerPrincipalOutstanding
+          : loanInfo.amount?.principalAmount ?? ledgerPrincipalDue,
         principalToken.decimals
       );
       const outstandingInterestUi = baseUnitsToUi(
-        loanInfo.amount?.outstandingInterestAmount ?? 0,
+        loanInfo.amount?.outstandingInterestAmount ?? ledgerInterestOutstanding,
         principalToken.decimals
       );
 
-      const ledgers = loanInfo.ledgers ?? [];
       const averageApy =
         ledgers.length > 0
           ? ledgers.reduce((sum, ledger) => sum + (ledger.apy ?? 0), 0) / ledgers.length / 10_000
           : null;
+      const repayableLedger = ledgers.find((ledger) => {
+        const principalDue = ledger.principalDue ?? ledger.principalAmount ?? 0;
+        const principalRepaid = ledger.principalRepaid ?? 0;
+        const interest = ledger.interestOutstanding ?? ledger.interestOwedAmount ?? 0;
+        return Boolean(ledger.strategy) && principalDue - principalRepaid + interest > 0;
+      });
 
       const latestEndTime = ledgers
         .map((ledger) => ledger.endTime ?? 0)
@@ -264,6 +296,21 @@ export function deriveLoanCards(
               })
               .join(" · ")
           : "No collateral details returned";
+      const hasCollateral = collateralItems.some((collateral) => (collateral.amount ?? 0) > 0);
+      const hasRepayableDebt = Boolean(repayableLedger);
+      const isOpen = !loanInfo.loan?.closed;
+      const actionableDebt =
+        loanInfo.principalUsd != null
+          ? loanInfo.principalUsd >= minimumActionableLoanUsd
+          : hasRepayableDebt;
+      const actionableCollateral =
+        loanInfo.collateralUsd != null
+          ? loanInfo.collateralUsd >= minimumActionableLoanUsd
+          : hasCollateral;
+
+      if (!actionableDebt && !actionableCollateral) {
+        return null;
+      }
 
       return {
         address,
@@ -273,9 +320,15 @@ export function deriveLoanCards(
         outstandingInterestUi,
         avgApyPercent: averageApy,
         maturityDate: latestEndTime ? formatDateFromNow(new Date(latestEndTime * 1000)) : null,
-        statusLabel: loanInfo.loan?.closed ? "Closed" : "Active",
+        statusLabel: isOpen ? "Active" : "Closed",
         collateralSummary,
-        ledgerCount: ledgers.length
+        ledgerCount: ledgers.length,
+        canRepay: Boolean(isOpen && actionableDebt && hasRepayableDebt),
+        canWithdrawCollateral: Boolean(
+          isOpen && !hasRepayableDebt && actionableCollateral && hasCollateral
+        ),
+        canClose: Boolean(isOpen && !hasRepayableDebt && !hasCollateral)
       };
-    });
+    })
+    .filter((card): card is DerivedLoanCard => Boolean(card));
 }

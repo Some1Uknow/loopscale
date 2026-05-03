@@ -38,26 +38,50 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const loopscaleBody: LoopscaleLoanInfoRequest = {
+    const borrowerLookup: LoopscaleLoanInfoRequest = {
       borrowers: [body.borrower],
-      filterType: 0,
       page: 0,
-      pageSize: 50,
+      pageSize: 100,
       sortDirection: 1,
-      sortType: 1
+      sortType: 2
     };
 
-    const response = await loopscaleFetch<LoanInfoEnvelope[] | LoanInfoEnvelope>({
-      path: "/markets/loans/info",
-      body: loopscaleBody
-    });
+    const lookups: Promise<LoanInfoEnvelope[] | LoanInfoEnvelope>[] = [
+      loopscaleFetch<LoanInfoEnvelope[] | LoanInfoEnvelope>({
+        path: "/markets/loans/info",
+        body: borrowerLookup
+      })
+    ];
 
-    const loans = deriveLoanCards(response);
+    if (body.loanAddresses && body.loanAddresses.length > 0) {
+      lookups.push(
+        loopscaleFetch<LoanInfoEnvelope[] | LoanInfoEnvelope>({
+          path: "/markets/loans/info",
+          body: {
+            loanAddresses: body.loanAddresses,
+            page: 0,
+            pageSize: body.loanAddresses.length,
+            sortDirection: 1,
+            sortType: 2
+          }
+        })
+      );
+    }
+
+    const responses = await Promise.all(lookups);
+    const loans = Array.from(
+      new Map(
+        responses
+          .flatMap((response) => deriveLoanCards(response))
+          .map((loan) => [loan.address, loan])
+      ).values()
+    );
     logEvent("info", "my_loans.success", {
       requestId,
       durationMs: Date.now() - startedAt,
       borrower: body.borrower,
-      count: loans.length
+      count: loans.length,
+      requestedLoanAddresses: body.loanAddresses?.length ?? 0
     });
     return apiOk(requestId, loans);
   } catch (error) {

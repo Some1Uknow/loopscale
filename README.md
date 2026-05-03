@@ -67,7 +67,7 @@ The app calls Loopscale through Next route handlers under `src/app/api/loopscale
 - `QUOTE_RATE_LIMIT_*`, `CREATE_RATE_LIMIT_*`, `LOANS_RATE_LIMIT_*`
   Fixed-window API protections for local/server deployments
 - `NEXT_PUBLIC_SOLANA_RPC_URL`
-  Solana RPC used for transaction submission
+  Solana RPC used for transaction submission. For mainnet sends, use a dedicated provider; the public `https://api.mainnet-beta.solana.com` endpoint may reject `sendRawTransaction` with `403 Access forbidden`.
 - `NEXT_PUBLIC_DEMO_WALLET`
   Wallet used for quote discovery before a user connects
 

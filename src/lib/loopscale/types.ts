@@ -111,8 +111,18 @@ export type CreateLoanResponse = {
   loanAddress: string;
 };
 
+export type LoanLockTransactionResponse = {
+  transactions?: VersionedTransactionResponse[];
+  expectedLoanInfo?: {
+    loan?: {
+      address?: string;
+    };
+  };
+};
+
 export type LoopscaleLoanInfoRequest = {
   borrowers: string[];
+  loanAddresses?: string[];
   filterType?: number;
   page?: number;
   pageSize?: number;
@@ -122,7 +132,8 @@ export type LoopscaleLoanInfoRequest = {
 
 export type LoanInfoEnvelope = {
   totalCount: number;
-  loanInfos: LoanInfo[];
+  loanInfos?: LoanInfo[];
+  items?: LoanInfo[];
 };
 
 export type LoanInfo = {
@@ -143,9 +154,14 @@ export type LoanInfo = {
   };
   health?: number | null;
   dueTime?: number | null;
+  principalUsd?: number | null;
+  collateralUsd?: number | null;
   collateral?: Array<{
     amount?: number;
     assetMint?: string;
+    assetIdentifier?: string;
+    assetType?: number;
+    index?: number;
   }>;
   collateralData?: Array<{
     amount?: number;
@@ -154,15 +170,22 @@ export type LoanInfo = {
 };
 
 export type LoanLedger = {
+  ledgerIndex?: number;
+  status?: number;
+  strategy?: string;
   lender?: string;
   duration?: number;
   durationType?: number;
   apy?: number;
   principalAmount?: number;
+  principalDue?: number;
+  principalRepaid?: number;
   principalOutstandingAmount?: number;
   interestOwedAmount?: number;
+  interestOutstanding?: number;
   principalMint?: string;
   endTime?: number;
+  lqtRatios?: number[];
 };
 
 export type DerivedLoanCard = {
@@ -176,4 +199,7 @@ export type DerivedLoanCard = {
   statusLabel: string;
   collateralSummary: string;
   ledgerCount: number;
+  canRepay: boolean;
+  canWithdrawCollateral: boolean;
+  canClose: boolean;
 };

@@ -26,7 +26,14 @@ export const createLoanRequestSchema = z.object({
 });
 
 export const loanInfoRequestSchema = z.object({
-  borrower: z.string().min(32)
+  borrower: z.string().min(32),
+  loanAddresses: z.array(z.string().min(32)).max(10).optional()
+});
+
+export const loanActionRequestSchema = z.object({
+  wallet: z.string().min(32),
+  loanAddress: z.string().min(32),
+  action: z.enum(["repay", "withdrawCollateral", "close"])
 });
 
 export function parseQuoteRequest(input: z.infer<typeof quoteRequestSchema>) {

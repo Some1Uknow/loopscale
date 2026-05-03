@@ -4,11 +4,10 @@ import { useEffect, useState } from "react";
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
-import bs58 from "bs58";
-import { VersionedMessage, VersionedTransaction } from "@solana/web3.js";
 
 import { durationLabelFromKey, getTokenByMint } from "@/lib/borrow-catalog";
 import { readResponseError } from "@/lib/http";
+import { deserializeLoopscaleTransaction } from "@/lib/loopscale/transaction";
 import type { CreateLoanResponse, DerivedQuotePayload } from "@/lib/loopscale/types";
 import {
   formatDateFromNow,
@@ -23,10 +22,24 @@ import { InlineMessage } from "@/components/ui/inline-message";
 import { Panel } from "@/components/ui/panel";
 import { Skeleton } from "@/components/ui/skeleton";
 
+const rpcEndpoint =
+  process.env.NEXT_PUBLIC_SOLANA_RPC_URL ?? "https://api.mainnet-beta.solana.com";
+const recentLoansStorageKey = "loopscale:recent-loan-addresses";
+
 type ReviewState =
   | { status: "loading" }
   | { status: "error"; message: string }
   | { status: "ready"; data: DerivedQuotePayload };
+
+function formatLoanExecutionError(error: unknown) {
+  const message = error instanceof Error ? error.message : "Signing failed before the loan was created.";
+
+  if (message.includes("403") && message.includes("Access forbidden")) {
+    return `Your Solana RPC endpoint rejected transaction submission. Set NEXT_PUBLIC_SOLANA_RPC_URL to a dedicated mainnet RPC provider and try again. Current endpoint: ${rpcEndpoint}`;
+  }
+
+  return message;
+}
 
 export function LoanReview({
   principalMint,
@@ -139,14 +152,7 @@ export function LoanReview({
       }
 
       const result = (await response.json()) as CreateLoanResponse;
-      const messageBytes = Uint8Array.from(atob(result.transaction.message), (char) =>
-        char.charCodeAt(0)
-      );
-      const message = VersionedMessage.deserialize(messageBytes);
-      const transaction = new VersionedTransaction(message);
-      transaction.signatures = result.transaction.signatures.map((signature) =>
-        signature.signature ? bs58.decode(signature.signature) : new Uint8Array(64)
-      );
+      const transaction = deserializeLoopscaleTransaction(result.transaction);
 
       const signed = await signTransaction(transaction);
       const signature = await connection.sendRawTransaction(signed.serialize(), {
@@ -154,6 +160,19 @@ export function LoanReview({
         maxRetries: 3
       });
       await connection.confirmTransaction(signature, "confirmed");
+
+      const existing =
+        typeof window === "undefined"
+          ? []
+          : JSON.parse(window.localStorage.getItem(recentLoansStorageKey) ?? "[]");
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(
+          recentLoansStorageKey,
+          JSON.stringify(
+            [result.loanAddress, ...existing.filter((address: string) => address !== result.loanAddress)].slice(0, 10)
+          )
+        );
+      }
 
       setSubmitState({
         status: "success",
@@ -163,8 +182,7 @@ export function LoanReview({
     } catch (error) {
       setSubmitState({
         status: "error",
-        message:
-          error instanceof Error ? error.message : "Signing failed before the loan was created."
+        message: formatLoanExecutionError(error)
       });
     }
   }
